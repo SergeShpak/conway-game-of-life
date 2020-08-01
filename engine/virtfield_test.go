@@ -7,9 +7,9 @@ import (
 
 func Test_getCoordWithWrap(t *testing.T) {
 	cases := []struct {
-		coord int
-		len   int
-		out   int
+		coord int32
+		len   int32
+		out   int32
 	}{
 		{
 			coord: 5,
@@ -45,7 +45,7 @@ func Test_getCoordWithWrap(t *testing.T) {
 	for i, tc := range cases {
 		i, tc := i, tc
 		t.Run(fmt.Sprintf("running test case #%d", i), func(t *testing.T) {
-			actualOut := getCoordWithWrap(tc.coord, tc.len)
+			actualOut := normalizeDim(tc.coord, tc.len)
 			if actualOut != tc.out {
 				t.Fatalf("expected out %d, actual out %d", tc.out, actualOut)
 			}

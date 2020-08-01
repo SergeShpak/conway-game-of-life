@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -13,30 +12,47 @@ import (
 )
 
 const (
-	height = 5
-	width  = 5
+	height = 50
+	width  = 50
 )
 
 func main() {
-	universe, err := engine.NewUniverse(height, width, []engine.UniverseCoord{
+	universe := engine.NewUniverse(height, width, []engine.UniverseCoord{
 		{
 			X: 1,
 			Y: 2,
 		},
 		{
 			X: 2,
-			Y: 2,
+			Y: 3,
+		},
+		{
+			X: 3,
+			Y: 1,
 		},
 		{
 			X: 3,
 			Y: 2,
 		},
+		{
+			X: 3,
+			Y: 3,
+		},
+
+		{
+			X: 5,
+			Y: 6,
+		},
+		{
+			X: 6,
+			Y: 6,
+		},
+		{
+			X: 7,
+			Y: 6,
+		},
 	})
-	if err != nil {
-		log.Fatalf("failed to create a universe: %v", err)
-	}
 	writer := uilive.New()
-	// start listening for updates and render
 	writer.Start()
 	for {
 		repr := buildRepr(universe.Field)

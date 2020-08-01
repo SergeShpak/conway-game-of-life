@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"fmt"
+	"math"
 	"sync"
 )
 
@@ -27,17 +27,16 @@ func getDefaultUniverseRules() *UniverseRules {
 }
 
 type Universe struct {
-	Field     map[UniverseCoord]struct{}
-	nextField map[UniverseCoord]struct{}
-	Height    int
-	Width     int
-	rules     *UniverseRules
-	readMux   sync.RWMutex
+	Field      map[UniverseCoord]struct{}
+	nextField  map[UniverseCoord]struct{}
+	virtifield *virtfield
+	rules      *UniverseRules
+	readMux    sync.RWMutex
 }
 
 type UniverseCoord struct {
-	X int
-	Y int
+	X int32
+	Y int32
 }
 
 type UniverseCell struct {
@@ -72,31 +71,22 @@ func (a *DeadCellAssignment) Assign(coord UniverseCoord) bool {
 	return true
 }
 
-func NewUniverse(height int, width int, filledCells []UniverseCoord) (*Universe, error) {
-	if height <= 0 || width <= 0 {
-		return nil, fmt.Errorf("universe height and width must be positive integers")
-	}
+func NewUniverse(height uint32, width uint32, filledCells []UniverseCoord) *Universe {
 	field := make(map[UniverseCoord]struct{})
 	u := &Universe{
-		Field:  field,
-		Height: height,
-		Width:  width,
-		rules:  getDefaultUniverseRules(),
+		Field:      field,
+		rules:      getDefaultUniverseRules(),
+		virtifield: newVirtfield(height, width),
 	}
 	for _, cell := range filledCells {
-		u.set(cell)
+		normalizedCell := u.virtifield.NormalizeUniverseCoord(cell)
+		u.set(normalizedCell)
 	}
-	return u, nil
+	return u
 }
 
 func (u *Universe) set(coord UniverseCoord) {
-	normalizedCoord := u.normalizeCoord(coord)
-	u.Field[normalizedCoord] = struct{}{}
-}
-
-func (u *Universe) unset(coord UniverseCoord) {
-	normalizedCoord := u.normalizeCoord(coord)
-	delete(u.Field, normalizedCoord)
+	u.Field[coord] = struct{}{}
 }
 
 func (u *Universe) Step() {
@@ -181,7 +171,7 @@ func (u *Universe) evaluateDeadCell(coord UniverseCoord, neighbors *Neighbors, d
 			aliveNeighbors++
 		}
 	}
-	if aliveNeighbors >= u.rules.Reproduction {
+	if aliveNeighbors == u.rules.Reproduction {
 		diffChan <- UniverseCell{
 			Coord:  coord,
 			Filled: true,
@@ -204,30 +194,35 @@ func (u *Universe) getNeighbors(coord UniverseCoord) *Neighbors {
 
 func (u *Universe) getNeighborsCoords(coord UniverseCoord) []UniverseCoord {
 	neighborsCoords := make([]UniverseCoord, 0, 8)
-	for i := -1; i <= 1; i++ {
-		for j := -1; j <= 1; j++ {
+	var i, j int32
+	for i = -1; i <= 1; i++ {
+		for j = -1; j <= 1; j++ {
 			if i == 0 && j == 0 {
+				continue
+			}
+			if isOverflowed(coord.X, i) || isOverflowed(coord.Y, j) {
 				continue
 			}
 			neighbor := UniverseCoord{
 				X: coord.X + i,
 				Y: coord.Y + j,
 			}
-			normalizedNeighbor := u.normalizeCoord(neighbor)
+			normalizedNeighbor := u.virtifield.NormalizeUniverseCoord(neighbor)
 			neighborsCoords = append(neighborsCoords, normalizedNeighbor)
 		}
 	}
 	return neighborsCoords
 }
 
-func (u *Universe) normalizeCoord(coord UniverseCoord) UniverseCoord {
-	x := getCoordWithWrap(coord.X, u.Height)
-	y := getCoordWithWrap(coord.Y, u.Width)
-	normalizedCoord := UniverseCoord{
-		X: x,
-		Y: y,
+func isOverflowed(coord int32, diff int32) bool {
+	if diff == 0 {
+		return false
 	}
-	return normalizedCoord
+	if diff < 0 {
+		return coord < (math.MinInt32 - diff)
+	}
+	// diff > 0
+	return coord > (math.MaxInt32 - diff)
 }
 
 func (u *Universe) getCell(coord UniverseCoord) UniverseCell {
@@ -240,20 +235,4 @@ func (u *Universe) getCell(coord UniverseCoord) UniverseCell {
 	}
 	u.readMux.RUnlock()
 	return cell
-}
-
-func getCoordWithWrap(coord int, len int) int {
-	if coord >= 0 && coord < len {
-		return coord
-	}
-	if len <= 1 {
-		return 0
-	}
-	if coord < 0 {
-		dist := (len - 1) - coord
-		wrappedCoord := (dist/len)*len + coord
-		return wrappedCoord
-	}
-	// coord >= len
-	return coord % len
 }
